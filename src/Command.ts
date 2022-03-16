@@ -1,20 +1,29 @@
-interface CommandArgument {
-    id: string;
+interface Argument {
+
 }
 
-interface CommandResult {
-    success: boolean;
+interface Result {
+    code: number;
 }
 
-abstract class Command<Argument extends CommandArgument, Result extends CommandResult> {
-    protected argument: Argument;
-    protected result?: Result;
+abstract class Command<Arg extends Argument, Res extends Result> {
+    protected argument: Arg;
+    protected result?: Res;
 
-    public abstract execute(): Promise<Result>;
+    protected name: string;
+    protected app?: Application;
+
+    public abstract execute(): Promise<Res>;
     public abstract undo(): Promise<void>;
 
-    public constructor(argument: Argument) {
+    public constructor(argument: Arg, name: string, app: Application) {
         this.argument = argument;
+        this.name = name;
+        this.app = app;
+    }
+
+    public getName() {
+        return this.name;
     }
 }
 
@@ -38,62 +47,91 @@ class CommandHistory {
 
 
 
-interface CopyArgument extends CommandArgument { }
-interface CutArgument extends CommandArgument { }
-interface PasteArgument extends CommandArgument { }
+interface CopyArgument extends Argument { }
+interface CutArgument extends Argument { }
+interface PasteArgument extends Argument { }
+interface UndoArgument extends Argument { }
 
-interface CopyResult extends CommandResult { }
-interface CutResult extends CommandResult { }
-interface PasteResult extends CommandResult { }
+interface CopyResult extends Result { }
+interface CutResult extends Result { }
+interface PasteResult extends Result { }
+interface UndoResult extends Result { }
 
 class CopyCommand extends Command<CopyArgument, CopyResult> {
 
     public async execute() {
-        console.log('Executing copy command...');
+        console.log(`Executing ${this.name} command...`);
+
+        this.app?.history.push(this);
 
         this.result = {
-            success: true,
+            code: 0,
         };
 
         return this.result;
     }
 
     public async undo() {
-        console.log('Undoing copy command...');
+        console.log(`Undoing ${this.name} command...`);
     }
 }
 
 class CutCommand extends Command<CutArgument, CutResult> {
 
     public async execute() {
-        console.log('Executing cut command...');
+        console.log(`Executing ${this.name} command...`);
+
+        this.app?.history.push(this);
 
         this.result = {
-            success: true,
+            code: 0,
         };
 
         return this.result;
     }
 
     public async undo() {
-        console.log('Undoing cut command...');
+        console.log(`Undoing ${this.name} command...`);
     }
 }
 
 class PasteCommand extends Command<PasteArgument, PasteResult> {
 
     public async execute() {
-        console.log('Executing paste command...');
+        console.log(`Executing ${this.name} command...`);
+
+        this.app?.history.push(this);
 
         this.result = {
-            success: true,
+            code: 0,
         };
 
         return this.result;
     }
 
     public async undo() {
-        console.log('Undoing paste command...');
+        console.log(`Undoing ${this.name} command...`);
+    }
+}
+
+class UndoCommand extends Command<UndoArgument, UndoResult> {
+
+    public async execute() {
+        const command = this.app?.history.pop();
+
+        if (command) {
+            console.log(`Undoing ${command.getName()} command...`);
+        }
+
+        this.result = {
+            code: 0,
+        };
+
+        return this.result;
+    }
+
+    public async undo() {
+
     }
 }
 
@@ -119,16 +157,7 @@ class Button {
     }
 
     public async click() {
-        if (!this.command) return;
-
-        try {
-            this.app.history.push(this.command);
-
-            return this.command.execute();
-
-        } catch {
-            console.error(`Could not execute command.`);
-        }
+        return this.command?.execute();
     }
 }
 
@@ -137,7 +166,7 @@ class CopyButton extends Button {
     public constructor(app: Application) {
         super(app);
 
-        this.setCommand(new CopyCommand({ id: 'CopyCommandID' }));
+        this.setCommand(new CopyCommand({ }, 'Copy', app));
     }
 }
 
@@ -146,7 +175,7 @@ class CutButton extends Button {
     public constructor(app: Application) {
         super(app);
         
-        this.setCommand(new CutCommand({ id: 'CutCommandID' }));
+        this.setCommand(new CutCommand({ }, 'Cut', app));
     }
 }
 
@@ -155,7 +184,7 @@ class PasteButton extends Button {
     public constructor(app: Application) {
         super(app);
         
-        this.setCommand(new PasteCommand({ id: 'PasteCommandID' }));
+        this.setCommand(new PasteCommand({ }, 'Paste', app));
     }
 }
 
@@ -163,18 +192,8 @@ class UndoButton extends Button {
 
     public constructor(app: Application) {
         super(app);
-    }
 
-    public async click() {
-
-        try {
-            const command = this.app.history.pop();
-
-            await command?.undo();
-
-        } catch {
-            console.error(`Could not undo command.`);
-        }
+        this.setCommand(new UndoCommand({ }, 'Undo', app));
     }
 }
 
