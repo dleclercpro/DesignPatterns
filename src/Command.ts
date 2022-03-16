@@ -99,31 +99,99 @@ class PasteCommand extends Command<PasteArgument, PasteResult> {
 
 
 
-class Application {
-    private history: CommandHistory;
+enum ButtonType {
+    Copy = 'Copy',
+    Cut = 'Cut',
+    Paste = 'Paste',
+    Undo = 'Undo',
+}
 
-    public constructor() {
-        this.history = new CommandHistory();
+class Button {
+    protected app: Application;
+    protected command?: Command<any, any>;
+
+    public constructor(app: Application) {
+        this.app = app;
     }
 
-    public async executeCommand(command: Command<any, any>) {
-        try {
-            this.history.push(command);
+    public setCommand(command: Command<any, any>) {
+        this.command = command;
+    }
 
-            return command.execute();
+    public async click() {
+        if (!this.command) return;
+
+        try {
+            this.app.history.push(this.command);
+
+            return this.command.execute();
+
         } catch {
             console.error(`Could not execute command.`);
         }
     }
+}
 
-    public async undoCommand() {
+class CopyButton extends Button {
+    
+    public constructor(app: Application) {
+        super(app);
+
+        this.setCommand(new CopyCommand({ id: 'CopyCommandID' }));
+    }
+}
+
+class CutButton extends Button {
+    
+    public constructor(app: Application) {
+        super(app);
+        
+        this.setCommand(new CutCommand({ id: 'CutCommandID' }));
+    }
+}
+
+class PasteButton extends Button {
+    
+    public constructor(app: Application) {
+        super(app);
+        
+        this.setCommand(new PasteCommand({ id: 'PasteCommandID' }));
+    }
+}
+
+class UndoButton extends Button {
+
+    public constructor(app: Application) {
+        super(app);
+    }
+
+    public async click() {
+
         try {
-            const command = this.history.pop();
+            const command = this.app.history.pop();
 
             await command?.undo();
+
         } catch {
             console.error(`Could not undo command.`);
         }
+    }
+}
+
+
+
+class Application {
+    public history: CommandHistory;
+    public buttons: Record<ButtonType, Button>;
+
+    public constructor() {
+        this.history = new CommandHistory();
+        this.buttons = {
+            [ButtonType.Copy]: new CopyButton(this),
+            [ButtonType.Cut]: new CutButton(this),
+            [ButtonType.Paste]: new PasteButton(this),
+            [ButtonType.Undo]: new UndoButton(this),
+        };
     }
 }
 
@@ -140,10 +208,11 @@ class CommandTest {
 
         const app = new Application();
 
-        await app.executeCommand(new CopyCommand({ id: 'CopyCommandID' }));
-        await app.executeCommand(new PasteCommand({ id: 'PasteCommandID' }));
-        await app.executeCommand(new CutCommand({ id: 'CutCommandID' }));
-        await app.undoCommand();
+        await app.buttons['Copy'].click();
+        await app.buttons['Paste'].click();
+        await app.buttons['Undo'].click();
+        await app.buttons['Cut'].click();
+        await app.buttons['Paste'].click();
 
         console.log();
     }
